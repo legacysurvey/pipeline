@@ -31,11 +31,21 @@ RUN DEBIAN_FRONTEND=noninteractive \
 RUN echo 'PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh
 
 RUN wget -nv https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh -O miniconda.sh && \
-    bash miniconda.sh -b -p /opt/conda && \
-    conda config --add channels intel && \
+    bash miniconda.sh -b -p /opt/conda
+
+RUN ln -s /usr/lib/x86_64-linux-gnu/libffi.so.6 /usr/local/lib/libffi.so.7
+ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/local/lib
+
+RUN    conda install python=3.8
+#&& \
+RUN    conda config --add channels intel && \
     conda config --set always_yes yes && \
-    conda update conda && \
-    conda install python=3.7 pip numpy scipy && \
+    conda update conda #
+    #&& \
+
+#RUN conda install pip
+RUN conda install numpy
+RUN conda install scipy && \
     conda clean -a -y
 
 # ugly: Tractor's mp_fourier module detects the $CC='icc' exactly
@@ -103,7 +113,8 @@ RUN git clone http://github.com/dstndstn/astrometry.net.git astrometry \
     && make extra \
     && make install INSTALL_DIR=/usr/local \
     && make clean \
-    && (cd && PYTHONPATH=/usr/local/lib/python python3 -c "import astrometry; print(astrometry.__version__)")
+    && (cd && PYTHONPATH=/usr/local/lib/python python3 -c "import astrometry; print(astrometry.__version__)") \
+    && echo 0.82
 
 # Pip installs -- binary.  We need cython for the tractor.
 RUN for x in \
@@ -171,6 +182,8 @@ RUN apt -y update && apt install -y apt-utils \
 COPY --from=builder /usr/local /usr/local
 COPY --from=builder /opt/conda /opt/conda
 
+ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/usr/local/lib
+
 RUN pip --no-cache-dir install ipython Pillow healpy seaborn
 
 WORKDIR /src
@@ -213,9 +226,9 @@ RUN echo "export PS1='[container] \\u@\\h:\\w$ '" >> $HOME/.bashrc \
   && python -c "from astropy.time import Time; Time.now()"
   
 # Curses upon you, astropy
-RUN wget -O /opt/conda/lib/python3.7/site-packages/astropy/utils/iers/data/Leap_Second.dat \
+RUN wget -O /opt/conda/lib/python3.8/site-packages/astropy/utils/iers/data/Leap_Second.dat \
     https://raw.githubusercontent.com/astropy/astropy/master/astropy/utils/iers/data/Leap_Second.dat \
-    && rm $HOME/.wget-hsts
+    && rm $HOME/.wget-hsts && echo 2
 
 ENTRYPOINT ["/bin/bash", "-c"]
 CMD ["/bin/bash"]
@@ -223,17 +236,17 @@ CMD ["/bin/bash"]
 RUN python -O -m compileall \
     -x lib2to3 \
     /usr/local/lib/python \
-    /opt/conda/lib/python3.7 \
+    /opt/conda/lib/python3.8 \
     /src/unwise_psf/py \
     /src/legacypipe/py/{legacypipe,legacyzpts} && \
     python    -m compileall \
     -x lib2to3 \
     /usr/local/lib/python \
-    /opt/conda/lib/python3.7 \
+    /opt/conda/lib/python3.8 \
     /src/unwise_psf/py \
     /src/legacypipe/py/{legacypipe,legacyzpts}
 
 # update legacypipe
-RUN cd /src/legacypipe && git pull && git describe && echo 34 && \
+RUN cd /src/legacypipe && git pull && git describe && echo DR9.6.2 && \
   python    -m compileall /src/legacypipe/py/{legacypipe,legacyzpts} && \
   python -O -m compileall /src/legacypipe/py/{legacypipe,legacyzpts}
